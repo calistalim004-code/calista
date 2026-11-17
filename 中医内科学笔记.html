@@ -110,6 +110,23 @@ nav .wbtn{margin-top:8px;border:2px dashed var(--line);border-radius:16px}
 .rsec{background:var(--card);border:2px solid var(--line);border-radius:20px;padding:12px 16px;margin-bottom:10px}
 .rsec h3{margin:0 0 6px;display:flex;justify-content:space-between;font-size:1.05rem}
 .pt{padding:2px 0}
+textarea{resize:none;overflow:hidden}
+.tabs button.tb-zxt{background:var(--t3)}
+.cmpbar{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px}
+.cmpbar>b{padding-top:6px;min-width:5em}
+.pills{display:flex;gap:8px;flex-wrap:wrap;flex:1}
+.pill[aria-pressed="true"]{background:var(--accent);color:#0F2840;border-color:var(--accent);font-weight:700}
+.ct{margin:18px 0 4px;font-size:1.05rem}
+.tblwrap{overflow-x:auto;margin:10px 0 18px;border:2px solid var(--line);border-radius:18px;background:var(--card)}
+table.cmp{border-collapse:separate;border-spacing:0;min-width:100%;font-size:.95rem}
+.cmp th,.cmp td{padding:10px 12px;vertical-align:top;text-align:left;border-bottom:1px solid var(--line);border-right:1px solid var(--line);min-width:150px}
+.cmp thead th{background:var(--accent-soft)}
+.cmp tbody th{background:var(--panel);position:sticky;left:0;min-width:96px}
+.cmp ul{margin:0;padding-left:1.1em}
+.cmp .nil{color:var(--muted)}
+.cmp tr:last-child th,.cmp tr:last-child td{border-bottom:0}
+.cmp th:last-child,.cmp td:last-child{border-right:0}
+.tc0{--bc:var(--t1)}.tc1{--bc:var(--t2)}.tc2{--bc:var(--t3)}.tc3{--bc:var(--t4)}.tc4{--bc:var(--t5)}.tc5{--bc:var(--t6)}
 .pt.ok::before{content:"✅ "}.pt.part::before{content:"🟡 "}.pt.no::before{content:"❌ "}
 .zx{padding:10px 12px}
 .zx:not(.open) .zxhead{margin-bottom:0}
@@ -193,7 +210,7 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 const TABS=[['etio','病因病机','🌱'],['diag','诊断','🔍'],['diff','鉴别诊断','⚖️'],['pri','治则治法','🧭'],['zx','常见证型','📋']];
 const PH={etio:'• 每行写一个要点，按回车自动变成下一个小圆点',diag:'• 每行一个诊断要点',diff:'• 和哪个病证鉴别，区别在哪',pri:'• 治则\n• 治法'};
 const seed=()=>[["肺系病证","🫁"],["心系病证","💗"],["脑系病证","🧠"],["脾胃系病证","🍚"],["肝系病证","🌿"],["肾系病证","💧"],["气血津液病证","🩸"],["经络肢体病证","🦴"]].map(([sys,em])=>({sys,em,items:[]}));
-TABS.splice(3,0,['bzyd','辨证要点','🎯']);TABS.push(['map','思维导图','🗺️']);PH.bzyd='• 每行一个辨证要点';
+TABS.splice(3,0,['bzyd','辨证要点','🎯']);TABS.push(['map','思维导图','🗺️']);PH.bzyd='• 每行一个辨证要点';TABS.splice(6,0,['zxt','证型对比表','📊']);
 const zopen=new Set(),zsub=new Set();
 let mode=null;
 const W={stage:'wheel',rot:0,cat:'all',seg:null,segCat:null,pick:null,ans:{},res:null,spinning:false};
@@ -214,7 +231,7 @@ function renderNav(){
   DATA.forEach((s,i)=>{
     const b=document.createElement('button');
     b.textContent=(s.em||'📘')+' '+s.sys;
-    if(!mode&&(!q.value&&!open&&i===cur||!q.value&&open&&i===open.ci))b.setAttribute('aria-current','true');
+    if((!mode||mode==='cmp')&&(!q.value&&!open&&i===cur||!q.value&&open&&i===open.ci))b.setAttribute('aria-current','true');
     b.onclick=()=>{cur=i;open=null;mode=null;q.value='';render();};
     nav.appendChild(b);
   });
@@ -287,13 +304,82 @@ function viewResult(){
     '<p class="hint">评分是按关键字匹配的，换一种说法可能会被扣分，只供参考。✅ 写到了　🟡 写到一部分　❌ 漏掉了</p>'+
     '<div class="wctl"><button class="primary" data-act="again">🎡 再转一次</button><button data-act="retry">🔁 再考这个</button><button data-act="opennote">📖 去看这个病证的笔记</button></div>';
 }
+function autoSize(el){if(!el.getClientRects().length)return;el.style.height='auto';el.style.height=(el.scrollHeight+4)+'px';}
+function fitAll(){main.querySelectorAll('textarea').forEach(autoSize);}
+const C={ci:null,view:'table',sel:new Set(),fields:new Set(['etio']),deep:false};
+const CF=[['etio','病因病机'],['diag','诊断'],['diff','鉴别诊断'],['bzyd','辨证要点'],['pri','治则治法'],['zx','常见证型']];
+function ulHtml(a){return a.length?'<ul>'+a.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':'<span class="nil">—</span>';}
+function herbList(s){return String(s||'').split(/[、，,；;\n•]+/).map(x=>x.trim()).filter(Boolean);}
+function zxTable(t){
+  if(!t.zx.length)return '<div class="empty">这个病证还没有证型。先在“常见证型”里添加。</div>';
+  const rows=t.zx.map(z=>{
+    const zh=zhGet(z).filter(r=>hv(r.s)||hv(r.a)).map(r=>(r.s&&r.s.trim()?r.s.trim()+'：':'')+lines(r.a).join('；'));
+    const hb=herbList(z.comp).join('、');
+    return '<tr><th>'+esc(z.n||'未命名')+'</th><td>'+ulHtml(lines(z.sym))+'</td><td>'+ulHtml(zh)+'</td><td>'+ulHtml(lines(z.tx))+'</td><td>'+ulHtml(lines(z.fm))+'</td><td>'+(hb?esc(hb):'<span class="nil">—</span>')+'</td></tr>';
+  }).join('');
+  return '<div class="tblwrap"><table class="cmp"><thead><tr><th>证型</th><th>症状</th><th>证候分析</th><th>治法</th><th>方药</th><th>组成</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+function mmZx(z){
+  const L=a=>lines(a).map(x=>mmNode(x)),parts=[];
+  const sy=L(z.sym);if(sy.length)parts.push(mmNode('症状',sy));
+  const zk=zhGet(z).filter(r=>hv(r.s)||hv(r.a)).map(r=>mmNode(r.s&&r.s.trim()?r.s.trim():'（症状）',L(r.a)));
+  if(zk.length)parts.push(mmNode('证候分析',zk));
+  const tx=L(z.tx);if(tx.length)parts.push(mmNode('治法',tx));
+  const herbs=herbList(z.comp).map(x=>mmNode(x)),fm=lines(z.fm).join('、');
+  if(fm||herbs.length)parts.push(mmNode(fm?'方药：'+fm:'方药',herbs));
+  return mmNode(z.n&&z.n.trim()?z.n:'未命名证型',parts);
+}
+function mmTopic(t,cls){
+  const br=[];
+  CF.forEach(f=>{
+    if(!C.fields.has(f[0])||f[0]==='zx')return;
+    const k=lines(t[f[0]]).map(x=>mmNode(x));
+    if(k.length)br.push(mmNode(f[1],k,'l1 b-'+f[0]));
+  });
+  if(C.fields.has('zx')){
+    const zs=t.zx.map(z=>C.deep?mmZx(z):mmNode(z.n&&z.n.trim()?z.n:'未命名证型'));
+    if(zs.length)br.push(mmNode('常见证型',zs,'l1 b-zx'));
+  }
+  return mmNode(t.n||'未命名',br,cls);
+}
+function mmCmp(idx){
+  const s=DATA[C.ci];
+  const kids=idx.map((i,n)=>mmTopic(s.items[i],'l1 tc'+(n%6)));
+  return '<div class="mmwrap"><div class="mm"><ul>'+mmNode(s.sys,kids,'root')+'</ul></div></div>';
+}
+function tblCmp(idx){
+  const s=DATA[C.ci],ts=idx.map(i=>s.items[i]);
+  const flds=CF.filter(f=>f[0]!=='zx'&&C.fields.has(f[0]));
+  let h='';
+  if(flds.length){
+    h+='<div class="tblwrap"><table class="cmp"><thead><tr><th></th>'+ts.map(t=>'<th>'+esc(t.n||'未命名')+'</th>').join('')+'</tr></thead><tbody>'+
+      flds.map(f=>'<tr><th>'+f[1]+'</th>'+ts.map(t=>'<td>'+ulHtml(lines(t[f[0]]))+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
+  }
+  if(C.fields.has('zx'))h+=ts.map(t=>'<h3 class="ct">'+esc(t.n||'未命名')+' 的证型对比</h3>'+zxTable(t)).join('');
+  return h||'<div class="empty">在“显示内容”里选想对比的项目。</div>';
+}
+function openCmp(v){
+  if(!(mode==='cmp'&&C.ci===cur)){C.ci=cur;C.sel=v==='map'?new Set(DATA[cur].items.map((_,i)=>i)):new Set();C.fields=new Set(v==='map'?['zx']:['etio']);C.deep=false;}
+  C.view=v;mode='cmp';open=null;q.value='';render();
+}
+function viewCmp(){
+  const s=DATA[C.ci];
+  const top='<button class="back" data-act="cback">← 返回 '+esc(s.sys)+'</button><div class="head"><h2>'+(C.view==='table'?'📊 对比表':'🗺️ 总览导图')+'</h2><div class="pills" style="flex:none"><button class="pill" aria-pressed="'+(C.view==='table')+'" data-act="cmpt">📊 表格</button><button class="pill" aria-pressed="'+(C.view==='map')+'" data-act="cmpm">🗺️ 导图</button></div></div>';
+  if(!s.items.length)return top+'<div class="empty">这个分类还没有病证。先添加几个病证再来对比。</div>';
+  const p1=s.items.map((t,i)=>'<button class="pill" aria-pressed="'+C.sel.has(i)+'" data-act="ctopic" data-i="'+i+'">'+esc(t.n||'未命名')+'</button>').join('');
+  const p2=CF.map(f=>'<button class="pill" aria-pressed="'+C.fields.has(f[0])+'" data-act="cfield" data-k="'+f[0]+'">'+f[1]+'</button>').join('')+(C.view==='map'?'<button class="pill" aria-pressed="'+C.deep+'" data-act="cdeep">展开证型详情</button>':'');
+  const bars='<div class="cmpbar"><b>选择病证</b><div class="pills">'+p1+'</div><button data-act="csall">全选</button><button data-act="csnone">清空</button></div><div class="cmpbar"><b>显示内容</b><div class="pills">'+p2+'</div></div>';
+  const idx=[...C.sel].sort((a,b)=>a-b).filter(i=>s.items[i]);
+  const out=!idx.length?'<div class="empty">在上面点选想一起看的病证，例如“心悸”和“胸痹”。</div>':C.view==='map'?mmCmp(idx):tblCmp(idx);
+  return top+bars+out;
+}
 function chip(ci,ti,showCat){
   const t=DATA[ci].items[ti];
   return '<button class="chip" data-open="'+ci+'-'+ti+'"><b>'+esc(t.n||'未命名')+'</b><small>'+(showCat?esc(DATA[ci].sys)+' · ':'')+'已填 '+filled(t)+'/6</small></button>';
 }
 function viewCat(){
   const s=DATA[cur];
-  return '<div class="head"><h2>'+(s.em||'')+' '+esc(s.sys)+'</h2></div>'+
+  return '<div class="head"><h2>'+(s.em||'')+' '+esc(s.sys)+'</h2><div><button data-act="cmpt">📊 对比表</button> <button data-act="cmpm">🗺️ 导图</button></div></div>'+
     '<div class="adder"><input id="newT" placeholder="输入病证名称，例如：感冒" aria-label="新病证名称"><button class="primary" data-act="add">＋ 添加</button></div>'+
     (s.items.length?'<div class="grid">'+s.items.map((t,i)=>chip(cur,i,false)).join('')+'</div>':'<div class="empty">这里还是空的。在上面输入病证名称，点“添加”就有一格了。</div>');
 }
@@ -340,6 +426,7 @@ function mmMap(t){
 }
 function panel(t,tab){
   if(tab==='zx')return zxPanel(t);
+  if(tab==='zxt')return zxTable(t);
   if(tab==='map')return mmMap(t);
   return panelOld(t,tab);
 }
@@ -367,7 +454,7 @@ function viewTopic(){
 function render(){
   renderNav();
   const kw=q.value.trim().toLowerCase();
-  addWheelBtn();main.innerHTML=kw?viewSearch(kw):mode==='wheel'?viewWheel():open?viewTopic():viewCat();
+  addWheelBtn();main.innerHTML=kw?viewSearch(kw):mode==='wheel'?viewWheel():mode==='cmp'?viewCmp():open?viewTopic():viewCat();fitAll();
 }
 
 main.addEventListener('click',e=>{
@@ -383,6 +470,13 @@ main.addEventListener('click',e=>{
     if(!n){inp.focus();return;}
     DATA[cur].items.push({n,etio:'',diag:'',diff:'',bzyd:'',pri:'',zx:[]});persist();render();return;
   }
+  if(a==='cmpt'||a==='cmpm'){openCmp(a==='cmpt'?'table':'map');return;}
+  if(a==='cback'){mode=null;render();return;}
+  if(a==='ctopic'){const i=+b.dataset.i;if(C.sel.has(i))C.sel.delete(i);else C.sel.add(i);render();return;}
+  if(a==='cfield'){const k=b.dataset.k;if(C.fields.has(k))C.fields.delete(k);else C.fields.add(k);render();return;}
+  if(a==='cdeep'){C.deep=!C.deep;render();return;}
+  if(a==='csall'){C.sel=new Set(DATA[C.ci].items.map((_,i)=>i));render();return;}
+  if(a==='csnone'){C.sel=new Set();render();return;}
   if(a==='spin'){
     if(W.spinning)return;
     const seg=W.seg.length===1?[W.seg[0],W.seg[0]]:W.seg;
@@ -401,8 +495,8 @@ main.addEventListener('click',e=>{
   if(a==='again'){W.stage='wheel';render();return;}
   if(a==='retry'){W.ans={};W.stage='quiz';render();return;}
   if(a==='opennote'){mode=null;open={ci:W.pick.ci,ti:W.pick.ti,tab:'etio'};cur=W.pick.ci;zopen.clear();zsub.clear();render();return;}
-  if(a==='togz'){const z=b.closest('.zx'),i=+z.dataset.z;z.classList.toggle('open');const o=z.classList.contains('open');if(o)zopen.add(i);else zopen.delete(i);b.setAttribute('aria-expanded',o);return;}
-  if(a==='togsub'){const s=b.closest('.sub'),k=s.dataset.sk;s.classList.toggle('open');const o=s.classList.contains('open');if(o)zsub.add(k);else zsub.delete(k);b.setAttribute('aria-expanded',o);return;}
+  if(a==='togz'){const z=b.closest('.zx'),i=+z.dataset.z;z.classList.toggle('open');const o=z.classList.contains('open');if(o)zopen.add(i);else zopen.delete(i);b.setAttribute('aria-expanded',o);fitAll();return;}
+  if(a==='togsub'){const s=b.closest('.sub'),k=s.dataset.sk;s.classList.toggle('open');const o=s.classList.contains('open');if(o)zsub.add(k);else zsub.delete(k);b.setAttribute('aria-expanded',o);fitAll();return;}
   if(a==='recite'){recite=!recite;render();return;}
   if(a==='back'){open=null;delArm=false;recite=false;render();return;}
   const t=open&&DATA[open.ci].items[open.ti];
@@ -416,6 +510,7 @@ main.addEventListener('click',e=>{
   }
 });
 main.addEventListener('input',e=>{
+  if(e.target.tagName==='TEXTAREA')autoSize(e.target);
   if(e.target.dataset.q!==undefined){W.ans[e.target.dataset.q]=e.target.value;return;}
   if(!open)return;
   const el=e.target,t=DATA[open.ci].items[open.ti];
@@ -448,6 +543,8 @@ main.addEventListener('focusout',e=>{
 });
 q.addEventListener('input',()=>{if(q.value)open=null;render();});
 main.addEventListener('change',e=>{if(e.target.id==='wcat'){W.cat=e.target.value;W.seg=null;render();}});
+window.addEventListener('resize',fitAll);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fitAll);
 
 $('backup').onclick=()=>{$('bkText').value=JSON.stringify(DATA);$('bkMsg').textContent='';$('bk').showModal();};
 $('bkClose').onclick=()=>$('bk').close();
